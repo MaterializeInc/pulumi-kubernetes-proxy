@@ -2,12 +2,17 @@
 
 To release a new version:
 
-1. Update the version in `Makefile` and
-   `cmd/pulumi-resource-kubernetes-proxy/main.go`.
+1. Make changes.
 
-2. Run `make python-sdk`.
+2. Update changelog.
 
-3. Commit the changes and push to GitHub.
+3. Commit changes and push to GitHub.
 
-3. Tag the new version with `git tag -a $version -m $version`. Push the tag to
-   GitHub.
+4. Create the tag.
+
+    ```
+    version=vA.B.C
+    git tag -a $version -m $version
+    git push
+    git push origin $version
+    ```

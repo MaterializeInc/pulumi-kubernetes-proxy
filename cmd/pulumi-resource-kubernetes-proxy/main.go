@@ -32,7 +32,8 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-const version = "0.1.1"
+// Injected by linker in release builds.
+var version string
 
 func main() {
 	err := provider.Main("kubernetes-proxy", func(host *provider.HostClient) (rpc.ResourceProviderServer, error) {

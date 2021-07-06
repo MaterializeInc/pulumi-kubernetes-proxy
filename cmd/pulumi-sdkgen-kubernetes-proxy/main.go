@@ -17,81 +17,77 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tools"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
 
 	"github.com/pkg/errors"
 	pygen "github.com/pulumi/pulumi/pkg/v3/codegen/python"
-	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
-// emitPackage emits an entire package pack into the configured output directory
-// with the configured settings.
-func emitPackage(schemaPath, targetSdkFolder string) error {
-	schemaBytes, err := ioutil.ReadFile(schemaPath)
-	if err != nil {
-		return errors.Wrap(err, "reading schema")
+func main() {
+	if len(os.Args) != 2 {
+		fmt.Printf("Usage: pulumi-sdkgen-kubernetes-proxy <version>\n")
+		return
 	}
 
-	var spec pschema.PackageSpec
-	err = json.Unmarshal(schemaBytes, &spec)
-	if err != nil {
-		return errors.Wrap(err, "reading schema")
+	if err := run(os.Args[1]); err != nil {
+		cmdutil.ExitError(err.Error())
 	}
+}
 
-	ppkg, err := pschema.ImportSpec(spec, nil)
+func run(version string) error {
+	spec := schema.PackageSpec{
+		Name:              "kubernetes-proxy",
+		Version:           version,
+		Description:       "A Pulumi package for managing Kubernetes proxies during provisioning.",
+		License:           "Apache-2.0",
+		Repository:        "https://github.com/benesch/pulumi-kubernetes-proxy",
+		PluginDownloadURL: fmt.Sprintf("https://github.com/benesch/pulumi-kubernetes-proxy/releases/download/%s/", version),
+		Provider: schema.ResourceSpec{
+			InputProperties: map[string]schema.PropertySpec{
+				"kubeconfig":  {TypeSpec: schema.TypeSpec{Type: "string"}},
+				"namespace":   {TypeSpec: schema.TypeSpec{Type: "string"}},
+				"podSelector": {TypeSpec: schema.TypeSpec{Type: "string"}},
+				"remotePort":  {TypeSpec: schema.TypeSpec{Type: "integer"}},
+				"hostPort":    {TypeSpec: schema.TypeSpec{Type: "integer"}},
+			},
+			RequiredInputs: []string{
+				"kubeconfig",
+				"namespace",
+				"podSelector",
+				"remotePort",
+				"hostPort",
+			},
+		},
+		Language: map[string]json.RawMessage{
+			"python": json.RawMessage("{}"),
+		},
+	}
+	ppkg, err := schema.ImportSpec(spec, nil)
 	if err != nil {
 		return errors.Wrap(err, "reading schema")
 	}
 
 	toolDescription := "the Pulumi SDK Generator"
 	extraFiles := map[string][]byte{}
-
 	files, err := pygen.GeneratePackage(toolDescription, ppkg, extraFiles)
 	if err != nil {
-		return errors.Wrapf(err, "generating python package")
+		return fmt.Errorf("generating python package: %v", err)
 	}
 
-	for f, contents := range files {
-		if err := emitFile(path.Join(targetSdkFolder, "python"), f, contents); err != nil {
-			return errors.Wrapf(err, "emitting file %v", f)
+	for path, contents := range files {
+		path = filepath.Join("sdk", "python", path)
+		if err := tools.EnsureFileDir(path); err != nil {
+			return fmt.Errorf("creating directory: %v", err)
+		}
+		if err := os.WriteFile(path, contents, 0644); err != nil {
+			return fmt.Errorf("writing file: %v", err)
 		}
 	}
 
 	return nil
-}
-
-func emitFile(outDir, relPath string, contents []byte) error {
-	p := path.Join(outDir, relPath)
-	if err := tools.EnsureDir(path.Dir(p)); err != nil {
-		return errors.Wrap(err, "creating directory")
-	}
-
-	f, err := os.Create(p)
-	if err != nil {
-		return errors.Wrap(err, "creating file")
-	}
-	defer contract.IgnoreClose(f)
-
-	_, err = f.Write(contents)
-	return err
-}
-
-func main() {
-	if len(os.Args) < 3 {
-		fmt.Printf("Usage: pulumi-sdkgen-kubernetes-proxy <schema-file> <target-sdk-folder>\n")
-		return
-	}
-
-	schemaPath := os.Args[1]
-	targetSdkFolder := os.Args[2]
-
-	err := emitPackage(schemaPath, targetSdkFolder)
-	if err != nil {
-		fmt.Printf("Failed: %s", err.Error())
-	}
 }
