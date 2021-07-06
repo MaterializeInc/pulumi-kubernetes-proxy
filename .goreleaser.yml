@@ -10,5 +10,6 @@ builds:
       - windows
       - linux
     main: ./cmd/pulumi-resource-kubernetes-proxy
+    binary: pulumi-resource-kubernetes-proxy
 changelog:
   skip: true
