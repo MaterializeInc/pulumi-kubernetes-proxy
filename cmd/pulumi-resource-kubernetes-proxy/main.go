@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-const version = "0.0.1"
+const version = "0.1.1"
 
 func main() {
 	err := provider.Main("kubernetes-proxy", func(host *provider.HostClient) (rpc.ResourceProviderServer, error) {

@@ -1,10 +1,10 @@
 # Kubernetes Proxy Pulumi Provider
 
-A [Pulumi] provider that proxies a port on the host to a port on a pod in the
-cluster during provisioning.
+A [Pulumi](https://pulumi.com) provider that proxies a port on the host to a
+port on a pod in the cluster during provisioning.
 
-**Warning:** The way this fits into the Pulumi model is sketchy. It might break
-in future Pulumi releases. Use at your own risk!
+**Warning:** The way this fits into the Pulumi architecture is sketchy. It might
+break in future Pulumi releases. Use at your own risk!
 
 This can be useful to use Pulumi to provision services that run within the
 cluster that are not publicly accessible, like a database.

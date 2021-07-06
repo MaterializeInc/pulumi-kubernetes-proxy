@@ -1,4 +1,4 @@
-VERSION = 0.1.0
+VERSION = 0.1.1
 
 bin/pulumi-sdkgen-kubernetes-proxy:
 	go build -o bin/pulumi-sdkgen-kubernetes-proxy ./cmd/pulumi-sdkgen-kubernetes-proxy
