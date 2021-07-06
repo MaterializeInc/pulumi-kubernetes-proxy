@@ -1,0 +1,38 @@
+{
+    "name": "kubernetes-proxy",
+    "version": "0.1.0",
+    "description": "A Pulumi package for managing Kubernetes proxies during provisioning.",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/benesch/pulumi-kubernetes-proxy",
+    "pluginDownloadURL": "https://github.com/benesch/pulumi-kubernetes-proxy/releases/download/v0.1.0/",
+    "provider": {
+        "inputProperties": {
+            "kubeconfig": {
+                "type": "string"
+            },
+            "namespace": {
+                "type": "string"
+            },
+            "podSelector": {
+                "type": "string"
+            },
+            "remotePort": {
+                "type": "integer"
+            },
+            "hostPort": {
+                "type": "integer"
+            }
+        },
+        "requiredInputs": [
+            "kubeconfig",
+            "namespace",
+            "podSelector",
+            "remotePort",
+            "hostPort"
+        ]
+    },
+    "language": {
+        "nodejs": {},
+        "python": {}
+    }
+}
