@@ -46,7 +46,7 @@ func run(version string) error {
 		Description:       "A Pulumi package for managing Kubernetes proxies during provisioning.",
 		License:           "Apache-2.0",
 		Repository:        "https://github.com/benesch/pulumi-kubernetes-proxy",
-		PluginDownloadURL: fmt.Sprintf("https://github.com/benesch/pulumi-kubernetes-proxy/releases/download/%s/", version),
+		PluginDownloadURL: fmt.Sprintf("https://github.com/benesch/pulumi-kubernetes-proxy/releases/download/v%s/", version),
 		Provider: schema.ResourceSpec{
 			InputProperties: map[string]schema.PropertySpec{
 				"kubeconfig":  {TypeSpec: schema.TypeSpec{Type: "string"}},

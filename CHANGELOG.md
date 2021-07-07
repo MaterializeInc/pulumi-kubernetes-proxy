@@ -5,6 +5,10 @@ All notable changes to this crate will be documented in this file.
 The format is based on [Keep a Changelog], and this crate adheres to [Semantic
 Versioning].
 
+## 0.1.3 - 2021-07-06
+
+* Correct version format in package URL.
+
 ## 0.1.2 - 2021-07-06
 
 * Adjust release process to avoid hardcoding versions.
