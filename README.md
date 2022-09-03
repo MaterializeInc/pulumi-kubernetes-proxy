@@ -23,7 +23,7 @@ PORT = 32123
 
 eks_cluster = eks.Cluster(...)
 
-k8s_proxy.Provider(
+rds_proxy_provider = k8s_proxy.Provider(
     "postgresql-proxy",
     kubeconfig=eks_cluster.kubeconfig,
     host_port=PORT,
@@ -32,10 +32,14 @@ k8s_proxy.Provider(
     pod_selector="workload=postgresql",
 )
 
+port = k8s_proxy.startproxy(
+    opts=pulumi.InvokeOptions(provider=rds_proxy_provider),
+)
+
 provider = postgresql.Provider(
     base_name,
     host="localhost",
-    port=PORT,
+    port=port.port,
     connect_timeout=10,
     database="db",
     username="user",

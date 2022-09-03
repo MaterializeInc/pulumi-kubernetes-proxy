@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	pbempty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,6 +50,12 @@ func main() {
 
 type kubernetesProxyProvider struct {
 	host *provider.HostClient
+
+	kubeconfig  string
+	namespace   string
+	podSelector string
+	hostPort    int
+	remotePort  int
 }
 
 func (k *kubernetesProxyProvider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
@@ -60,59 +68,76 @@ func (k *kubernetesProxyProvider) DiffConfig(ctx context.Context, req *rpc.DiffR
 
 func (k *kubernetesProxyProvider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
 	vars := req.GetVariables()
-	kubeconfig := vars["kubernetes-proxy:config:kubeconfig"]
-	namespace := vars["kubernetes-proxy:config:namespace"]
-	podSelector := vars["kubernetes-proxy:config:podSelector"]
-	hostPort := vars["kubernetes-proxy:config:hostPort"]
-	remotePort := vars["kubernetes-proxy:config:remotePort"]
-
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
-	if err != nil {
-		return nil, fmt.Errorf("unable to load kubeconfig: %v", err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to construct kubernetes client: %v", err)
-	}
-	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: podSelector,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to list pods: %v", err)
-	}
-	if len(pods.Items) == 0 {
-		return nil, fmt.Errorf("no pods matching selector %s", podSelector)
-	}
-	pod := pods.Items[0]
-	transport, upgrader, err := spdy.RoundTripperFor(config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to construct transport: %v", err)
-	}
-	dialer := spdy.NewDialer(
-		upgrader,
-		&http.Client{Transport: transport},
-		"POST",
-		clientset.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod.Name).SubResource("portforward").URL(),
-	)
-	ports := []string{fmt.Sprintf("%s:%s", hostPort, remotePort)}
-	stopCh := make(chan struct{}, 1)
-	readyCh := make(chan struct{})
-	fw, err := portforward.New(dialer, ports, stopCh, readyCh, os.Stdout, os.Stderr)
+	k.kubeconfig = vars["kubernetes-proxy:config:kubeconfig"]
+	k.namespace = vars["kubernetes-proxy:config:namespace"]
+	k.podSelector = vars["kubernetes-proxy:config:podSelector"]
+	var err error
+	k.hostPort, err = strconv.Atoi(vars["kubernetes-proxy:config:hostPort"])
 	if err != nil {
 		return nil, err
 	}
-	go func() {
-		if err := fw.ForwardPorts(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed forwarding ports: %v", err)
-			os.Exit(1)
-		}
-	}()
-	<-readyCh
+	k.remotePort, err = strconv.Atoi(vars["kubernetes-proxy:config:remotePort"])
+	if err != nil {
+		return nil, err
+	}
 	return &rpc.ConfigureResponse{}, nil
 }
 
-func (k *kubernetesProxyProvider) Invoke(_ context.Context, req *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
+func (k *kubernetesProxyProvider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
 	tok := req.GetTok()
+	if tok == "k8s_proxy::startproxy" {
+		config, err := clientcmd.RESTConfigFromKubeConfig([]byte(k.kubeconfig))
+		if err != nil {
+			return nil, fmt.Errorf("unable to load kubeconfig: %v", err)
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			return nil, fmt.Errorf("unable to construct kubernetes client: %v", err)
+		}
+		pods, err := clientset.CoreV1().Pods(k.namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: k.podSelector,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to list pods: %v", err)
+		}
+		if len(pods.Items) == 0 {
+			return nil, fmt.Errorf("no pods matching selector %s", k.podSelector)
+		}
+		pod := pods.Items[0]
+		transport, upgrader, err := spdy.RoundTripperFor(config)
+		if err != nil {
+			return nil, fmt.Errorf("unable to construct transport: %v", err)
+		}
+		dialer := spdy.NewDialer(
+			upgrader,
+			&http.Client{Transport: transport},
+			"POST",
+			clientset.CoreV1().RESTClient().Post().Resource("pods").Namespace(k.namespace).Name(pod.Name).SubResource("portforward").URL(),
+		)
+		ports := []string{fmt.Sprintf("%d:%d", k.hostPort, k.remotePort)}
+		stopCh := make(chan struct{}, 1)
+		readyCh := make(chan struct{})
+		fw, err := portforward.New(dialer, ports, stopCh, readyCh, os.Stdout, os.Stderr)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			if err := fw.ForwardPorts(); err != nil {
+				fmt.Fprintf(os.Stderr, "failed forwarding ports: %v", err)
+				os.Exit(1)
+			}
+		}()
+		<-readyCh
+
+		outputs := map[string]interface{}{
+			"port": k.hostPort,
+		}
+		result, err := plugin.MarshalProperties(
+			resource.NewPropertyMapFromMap(outputs),
+			plugin.MarshalOptions{},
+		)
+		return &rpc.InvokeResponse{Return: result}, nil
+	}
 	return nil, fmt.Errorf("Unknown Invoke token '%s'", tok)
 }
 

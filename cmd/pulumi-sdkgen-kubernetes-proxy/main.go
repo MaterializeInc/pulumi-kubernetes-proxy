@@ -63,6 +63,15 @@ func run(version string) error {
 				"hostPort",
 			},
 		},
+		Functions: map[string]schema.FunctionSpec{
+			"k8s_proxy::startproxy": {
+				Outputs: &schema.ObjectTypeSpec{
+					Properties: map[string]schema.PropertySpec{
+						"port": {TypeSpec: schema.TypeSpec{Type: "integer"}},
+					},
+				},
+			},
+		},
 		Language: map[string]json.RawMessage{
 			"python": json.RawMessage("{}"),
 		},
